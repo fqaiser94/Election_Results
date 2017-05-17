@@ -6,14 +6,9 @@
 
 #### Hyperparamaters ####
 
-# set location of inputs and outputs
-root_location = 'C:\\Users\\fmqai\\OneDrive\\Projects\\Wards\\'
-input_location = paste0(root_location, 'R inputs\\')
-output_location = paste0(root_location, 'R generated data\\')
+# download hyperparameters
+source('C:\\Users\\fmqai\\Documents\\Election_Results\\Election_Results\\Hyper_parameters.R')
 
-# set to TRUE if you want to export files
-# export_flag = TRUE
-export_flag = FALSE
 
 
 #### Packages ####
@@ -300,36 +295,6 @@ temp <- all_councillor_data %>%
 
 
 #### Federal Election results ####
-
-
-
-# Download all federal election results for Ontario
-
-temp <- paste0(input_location, '\\Election Results\\Federal Election results\\35001.csv')
-
-if(!file.exists(temp)) {
-  
-  for (i in 35001:35121) {
-    
-    # Example url
-    #http://www.elections.ca/res/rep/off/ovr2015app/41/data_donnees/pollresults_resultatsbureau35001.csv
-    
-    # create url to download from
-    temp_url_beg <- 'http://www.elections.ca/res/rep/off/ovr2015app/41/data_donnees/pollresults_resultatsbureau'
-    temp_url_end <- '.csv'
-    temp_url <- paste0(temp_url_beg, i, temp_url_end)
-    
-    # create destination file to download to
-    temp_path = paste0(input_location, '\\Election Results\\Federal Election results\\')
-    temp_dest_file <- paste0(temp_path, i, ".csv")
-    
-    # download file from url to specified location
-    download.file(temp_url, temp_dest_file, mode="wb")
-    
-    # remove temporary variables
-    rm(list = ls(patter = 'temp.*'))
-  }
-}
 
 
 # read in all files as list 
