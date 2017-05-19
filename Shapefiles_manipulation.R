@@ -55,8 +55,14 @@ if (!exists('federal_electoral_shp')){
 
 
 # convert to dataframe
-# federal_electoral_df <- as.data.frame(federal_electoral_shp, stringsAsFactors = FALSE)
+federal_electoral_df <- as.data.frame(federal_electoral_shp, stringsAsFactors = FALSE) %>%
+  select(FED_NUM, PD_NUM) %>% 
+  distinct() %>%
+  arrange(FED_NUM, PD_NUM) %>%
+  filter(FED_NUM==35001)
 
+# I wondered if PD_NUM matched Polling_Station_Number
+# PD_NUM only goes upto 501 unlike Polling_Station_Number which goes upto 612  
 
 
 # filter for just Ontario
