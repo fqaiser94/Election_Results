@@ -1,19 +1,14 @@
 #### Introduction ####
 
-# This is to build the core dataset 
+# This script is to build the core datasets 
 
 
 
 #### Hyperparamaters ####
 
-# set location of inputs and outputs
-root_location = 'C:\\Users\\fmqai\\OneDrive\\Projects\\Wards\\'
-input_location = paste0(root_location, 'R inputs\\')
-output_location = paste0(root_location, 'R generated data\\')
+# download hyperparameters
+source('C:\\Users\\fmqai\\Documents\\Election_Results\\Election_Results\\Hyper_parameters.R')
 
-# set to TRUE if you want to export files
-# export_flag = TRUE
-export_flag = FALSE
 
 
 #### Packages ####
@@ -24,18 +19,14 @@ library(xlsx) # if you get an rJava error, use the following link to download an
 # data manipulation packages
 library(dplyr)
 library(tidyr)
-# library(lubridate)
 
 # mapping packages
 library(rgdal)
 library(sp)
 
-# visualization packages
-# library(ggplot2)
 
 
-
-#### Functions ####
+#### Custom Functions ####
 
 pathPrep <- function(path) {
   new_path <- gsub(x = path, pattern = "/", replacement= "\\\\")
@@ -108,7 +99,7 @@ remove_empty_columns_and_rows <- function(df) {
 
 
 
-##### Councillor Races Data ####
+##### Councillor Election results ####
 
 # start with councillor race
 
@@ -250,9 +241,6 @@ councillors_2006_cleaned <- lapply(councillors_2006_cleaned, temp_function, year
 councillors_2010_cleaned <- lapply(councillors_2010_cleaned, temp_function, year = 2010)
 councillors_2014_cleaned <- lapply(councillors_2014_cleaned, temp_function, year = 2014)
 
-# temp <- councillors_2006[[4]]
-# temp <- councillors_2003_cleaned[[34]]
-
 
 
 # one table to rule them all! LOTR
@@ -268,12 +256,13 @@ all_councillor_data <-  all_councillor_data %>%
   mutate(AreaName = Ward*1000 + Subdivision, 
          AreaName = as.character(AreaName), 
          AreaName = ifelse(nchar(AreaName)<5, paste0('0', AreaName), AreaName)
-  ) %>%
+         ) %>%
   # Clean up names
   mutate(Candidate = gsub(x = Candidate, pattern = ',', replacement = ''), 
          Candidate = tolower(Candidate), 
          Candidate = gsub(x = Candidate,  pattern = "(?<=\\b)([a-z])", replacement = "\\U\\1", perl=TRUE)
-  ) %>%
+         ) %>%
+  # final columns
   select(Year, Ward, Candidate, Subdivision, Votes, AreaName, SourceExcelSheet)
 
 
@@ -287,90 +276,10 @@ data_dictionary <- data.frame(a = c('Year refers to the election year',
                                     paste0('Prepared by Farooq Qaiser on ', Sys.Date())), 
                               stringsAsFactors = FALSE)
 
-# some cleaning up to do
-# toUpper Candidate
-# remove commas
-
-temp <- all_councillor_data %>%
-  select(Ward, Subdivision) %>%
-  distinct() %>%
-  arrange(Ward, Subdivision)
-
-
-
-#### Shapefiles ####
-
-# read ward/subdivision shapefile
-if (!exists('ward_subdivision_shp')){
-  temp_path <- paste0(input_location, "Shapefiles\\Voting Subdivisions")
-  ward_subdivision_shp <- readOGR(dsn = temp_path, layer = "VOTING_SUBDIVISION_2014_WGS84")}
-
-
-# convert to dataframe
-ward_subdivision_df <- as.data.frame(ward_subdivision_shp)
-
-
-
-
-# read federal/ shapefile
-if (!exists('federal_electoral_shp')){
-  temp_path <- paste0(input_location, "Shapefiles\\Federal Electoral Districts\\Polling Division Boundaries\\2015\\Digital")
-  federal_electoral_shp <- readOGR(dsn = temp_path, layer = "PD_A")}
-
-# change projections
-# federal_electoral_reproj_shp <- spTransform(federal_electoral_shp, CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
-
-# alternative projections
-# federal_electoral_reproj_shp <- spTransform(federal_electoral_shp, CRS("+init=epsg:26978"))
-# federal_electoral_reproj_shp <- spTransform(federal_electoral_shp, CRS("+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0+x_0=0.0 +y_0=0 +k=1.0 +units=m +no_defs"))
-
-# plot
-# plot(federal_electoral_reproj_shp, axes = TRUE)
-
-
-
-# convert to dataframe
-federal_electoral_df <- as.data.frame(federal_electoral_shp, stringsAsFactors = FALSE)
-
-# filter for just Ontario
-
-
-
-
 
 
 
 #### Federal Election results ####
-
-
-
-# Download all federal election results for Ontario
-
-temp <- paste0(input_location, '\\Election Results\\Federal Election results\\35001.csv')
-
-if(!file.exists(temp)) {
-  
-  for (i in 35001:35121) {
-    
-    # Example url
-    #http://www.elections.ca/res/rep/off/ovr2015app/41/data_donnees/pollresults_resultatsbureau35001.csv
-    
-    # create url to download from
-    temp_url_beg <- 'http://www.elections.ca/res/rep/off/ovr2015app/41/data_donnees/pollresults_resultatsbureau'
-    temp_url_end <- '.csv'
-    temp_url <- paste0(temp_url_beg, i, temp_url_end)
-    
-    # create destination file to download to
-    temp_path = paste0(input_location, '\\Election Results\\Federal Election results\\')
-    temp_dest_file <- paste0(temp_path, i, ".csv")
-    
-    # download file from url to specified location
-    download.file(temp_url, temp_dest_file, mode="wb")
-    
-    # remove temporary variables
-    rm(list = ls(patter = 'temp.*'))
-  }
-}
 
 
 # read in all files as list 
@@ -397,55 +306,51 @@ if (!exists('federal_elections_2014')) {
 # assign to final federal_elections_2014 dataframe
 federal_elections_2014 <- temp_federal_elections_2014
 
-# set default
+
+
+
+# set default column name
 temp_colnames <- colnames(federal_elections_2014)
-
-# replace '..' with '.'
-temp_colnames <- gsub(x = temp_colnames, pattern = '\\.\\.', replacement = '\\.')
-
 # remove french parts
-temp_colnames <- gsub(x = temp_colnames, pattern = 'Num?.*|Nom.*|Indicateur.*|Fusionn?.*|Bulletins.*|?.*|Second.*|Pr.*|Appartenance.*|Votes\\.du.*', replacement = '')
-
-# remove some french characters that are remaining
-temp_colnames <- gsub(x = temp_colnames, pattern = '?|?\\.', replacement = '')
-
+temp_colnames <- gsub(x = temp_colnames, pattern = 'Num.\\..*|Nom.*|Indicateur.*|Fusionn.*|Bulletins.*|Second.*|Pr.*|Appartenance.*|Votes\\.du.*|lecteurs.*', replacement = '')
+# remove non-ASCII characters
+temp_colnames <- iconv(temp_colnames, "latin1", "ASCII", sub="")
+# remove '.s'
+temp_colnames <- gsub(x = temp_colnames, pattern = '\\.s', replacement = '')
 # remove all '_' 
 temp_colnames <- gsub(x = temp_colnames, pattern = '_', replacement = '\\.')
-
+# replace '..' with '.'
+temp_colnames <- gsub(x = temp_colnames, pattern = '\\.\\.', replacement = '\\.')
 # remove trailing and leading '.'
 temp_colnames <- gsub(x = temp_colnames, pattern = '^\\.|\\.$', replacement = '')
-
 # replace dots with '_'
 temp_colnames <- gsub(x = temp_colnames, pattern = '\\.', replacement = '_')
-
-# set new column names
+# set new (clean) column names
 colnames(federal_elections_2014) <- temp_colnames
 
+# set as numeric column
+federal_elections_2014$Electoral_District_Number <- as.numeric(federal_elections_2014$Electoral_District_Number)
+federal_elections_2014$Rejected_Ballots_for_Polling_Station <- as.numeric(federal_elections_2014$Rejected_Ballots_for_Polling_Station)
+federal_elections_2014$Electors_for_Polling_Station <- as.numeric(federal_elections_2014$Electors_for_Polling_Station)
+federal_elections_2014$Candidate_Poll_Votes_Count <- as.numeric(federal_elections_2014$Candidate_Poll_Votes_Count)
 
+# one table to rule them all! LOTR
+all_federal_elections_data <- data.frame(stringsAsFactors = FALSE)
 
-length(unique(federal_elections_2014$Polling_Station_Number))
-
+all_federal_elections_data <-  all_federal_elections_data %>%
+  bind_rows(federal_elections_2014)
 
 
 
 #### Export procedures ####
 
-# export all councillor data
+# export all Councillor Elections data
 if (export_flag==TRUE) {
-  temp_path = paste0(output_location, 'Election_results.csv')
+  temp_path = paste0(output_location, 'Councillor_Elections_results.csv')
   write.csv(file = temp_path, x = all_councillor_data, row.names = FALSE, na = '')}
 
 
-
-# export reprojected federal electoral districts shapefile
+# export all Federal Elections data
 if (export_flag==TRUE) {
-  
-  # check if directory exists and if not, then create it
-  subDir <- "Shapefiles"
-  ifelse(!dir.exists(file.path(output_location, subDir)), 
-         dir.create(file.path(output_location, subDir)), 
-         FALSE)
-  
-  # output to location
-  temp_path = paste0(output_location, '\\', subDir)
-  writeOGR(federal_electoral_reproj_shp, dsn = temp_path, layer = "federal_electoral_districts_15", driver="ESRI Shapefile")}
+  temp_path = paste0(output_location, 'Federal_Elections_results.csv')
+  write.csv(file = temp_path, x = all_federal_elections_data, row.names = FALSE, na = '')}
