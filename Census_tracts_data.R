@@ -34,5 +34,9 @@ source('Custom_functions.R')
 # Considering whether its wise to use data at the census tracts level or the FSA level
 temp_path <- paste0(input_location, 'Census Data\\Census Tract\\98-316-XWE2011001-401.csv')
 
+temp = readLines(con = temp_path)
+temp = temp[-1]
+temp = read.csv(textConnection(temp), header = TRUE, stringsAsFactors = FALSE)
+
 temp <- read.csv(file = temp_path, stringsAsFactors = FALSE)
 
