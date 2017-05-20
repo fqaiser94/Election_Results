@@ -32,3 +32,7 @@ source('Custom_functions.R')
 #### Load data ####
 
 # Considering whether its wise to use data at the census tracts level or the FSA level
+temp_path <- paste0(input_location, 'Census Data\\Census Tract\\98-316-XWE2011001-401.csv')
+
+temp <- read.csv(file = temp_path, stringsAsFactors = FALSE)
+
