@@ -7,7 +7,16 @@
 
 
 
-#### Download data from source ####
+#### Data ####
+
+
+# You can download census data at various geographic levels
+# Here is a link to a webpage where you can choose which level to download at
+# http://census2011.com/census-recensement/2011/dp-pd/prof/details/download-telecharger/comprehensive/comp-csv-tab-dwnld-tlchrgr.cfm?Lang=E#tabs2011
+
+# Download all census data at the FSA level
+
+
 
 # Download all federal election results for Ontario
 
@@ -36,3 +45,11 @@ if(!file.exists(temp)) {
     rm(list = ls(patter = 'temp.*'))
   }
 }
+
+
+
+
+#### Shapefiles ####
+
+# Download shapefiles for various StatsCan geographic schemas
+# http://www12.statcan.gc.ca/census-recensement/2011/geo/bound-limit/bound-limit-2011-eng.cfm

@@ -20,11 +20,6 @@ library(xlsx) # if you get an rJava error, use the following link to download an
 library(dplyr)
 library(tidyr)
 
-# mapping packages
-library(rgdal)
-library(sp)
-
-
 
 #### Custom Functions ####
 
