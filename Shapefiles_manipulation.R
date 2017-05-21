@@ -188,9 +188,6 @@ master_linkage <- data.frame(stringsAsFactors = FALSE)
 master_linkage <- master_linkage %>%
   bind_rows(temp)
 
-# Geo_code=35010155
-# Geo_nom=155
-
 
 
 #### Export procedures ####
