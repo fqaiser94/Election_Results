@@ -1,6 +1,6 @@
 #### Introduction ####
 
-# This script is to build clean census data at the census tracts level
+# This script is to build clean census data at the dissemination area level
 
 
 
@@ -30,31 +30,26 @@ source('Custom_functions.R')
 #### Load data ####
 
 # read in data
-if (!exists('census_tracts')){
-  temp_path <- paste0(input_location, 'Census Data\\Census Tract\\98-316-XWE2011001-401.csv')
-  census_tracts <- read.csv(file = temp_path, header = FALSE, stringsAsFactors = FALSE)}
+if (!exists('dissemination_area')){
+  temp_path <- paste0(input_location, 'Census Data\\Dissemination Area\\98-316-XWE2011001-1501-ONT.csv')
+  dissemination_area <- read.csv(file = temp_path, header = TRUE, stringsAsFactors = FALSE)}
 
-
+# quickly view data
+temp <- head(dissemination_area)
 
 #### Clean data ####
 
 # set default
-census_tracts_cleaned <- census_tracts
-
-# set correct header
-colnames(census_tracts_cleaned) <- census_tracts_cleaned[2, ] 
-
-# remove first 2 (non-data) rows
-census_tracts_cleaned <- census_tracts_cleaned[-(1:2), ]
+dissemination_area_cleaned <- dissemination_area
 
 # exploration
-temp <- census_tracts_cleaned %>%
+temp <- dissemination_area_cleaned %>%
   select(Topic, Characteristic) %>%
   distinct()
 
 # select columns
-census_tracts_cleaned <- census_tracts_cleaned %>%
-  select(Geo_Code, Prov_Name, CMACA_Name, CT_Name, Topic, Characteristic, Total) %>%
+dissemination_area_cleaned <- dissemination_area_cleaned %>%
+  select(Geo_Code, Prov_name, Geo_nom, Topic, Characteristic, Total) %>%
   mutate(Total = as.numeric(Total)
          # not a good idea as shapefile seems to contain the decimal places as well
          # Geo_Code = as.integer(Geo_Code), 
@@ -72,6 +67,7 @@ census_tracts_cleaned <- census_tracts_cleaned %>%
 #### Export procedures ####
 
 # export all census tracts data
+export_flag = TRUE
 if (export_flag==TRUE) {
   
   # check if directory exists and if not, then create it
@@ -83,5 +79,5 @@ if (export_flag==TRUE) {
   
   # output to location
   # temp_path = paste0(output_location, '\\', subDir, '\\Master_linkage.csv')
-  temp_path = paste0(output_location, '\\', subDir, '\\Census_Tracts.csv')
-  write.csv(file = temp_path, x = census_tracts_cleaned, row.names = FALSE, na = '')}
+  temp_path = paste0(output_location, '\\', subDir, '\\Dissemination_Area.csv')
+  write.csv(file = temp_path, x = dissemination_area_cleaned, row.names = FALSE, na = '')}

@@ -1,7 +1,7 @@
 #### Introduction ####
 
 # This script is to build clean census data at the neighbourhood level
-
+# This script is likely a duplicate of census_tracts, please delete
 
 
 #### Hyperparamaters ####
