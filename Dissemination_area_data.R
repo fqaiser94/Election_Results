@@ -49,12 +49,15 @@ temp <- dissemination_area_cleaned %>%
 
 # select columns
 dissemination_area_cleaned <- dissemination_area_cleaned %>%
-  select(Geo_Code, Prov_name, Geo_nom, Topic, Characteristic, Total) %>%
+  # remove rows like this, only want to keep aggregate rows to make things easy for end-user
+  filter(!grepl(x = Characteristic, pattern = '[0-9][0-9] years')) %>%
+  # some cleaning up
   mutate(Total = as.numeric(Total)
-         # not a good idea as shapefile seems to contain the decimal places as well
-         # Geo_Code = as.integer(Geo_Code), 
-         # CT_Name = as.integer(CT_Name)
-         )
+         , Topic = gsub(x = Topic, pattern = "^\\s+|\\s+$", replacement = "")
+         , Characteristic = gsub(x = Characteristic, pattern = "^\\s+|\\s+$", replacement = "")
+         ) %>%
+  # select final columns
+  select(Geo_Code, Prov_name, Geo_nom, Topic, Characteristic, Total)
 
 
 # Selected Topics
@@ -78,6 +81,5 @@ if (export_flag==TRUE) {
          FALSE)
   
   # output to location
-  # temp_path = paste0(output_location, '\\', subDir, '\\Master_linkage.csv')
   temp_path = paste0(output_location, '\\', subDir, '\\Dissemination_Area.csv')
-  write.csv(file = temp_path, x = dissemination_area_cleaned, row.names = FALSE, na = '')}
+  write.csv(x = dissemination_area_cleaned, file = temp_path, row.names = FALSE, na = '')}
