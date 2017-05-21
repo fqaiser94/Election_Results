@@ -18,6 +18,8 @@ crs_default = crs_merc
 
 # export_flag = TRUE
 
+
+
 #### Packages ####
 
 # data manipulation packages
@@ -36,7 +38,6 @@ library(sp)
 if (!exists('ward_subdivision_shp')){
   temp_path <- paste0(input_location, "Shapefiles\\Voting Subdivisions")
   ward_subdivision_shp <- readOGR(dsn = temp_path, layer = "VOTING_SUBDIVISION_2014_WGS84")}
-
 
 # check (CRS) projection
 ward_subdivision_shp@proj4string
@@ -210,22 +211,18 @@ if (export_flag==TRUE) {
 
 
 # export reprojected Toronto Ward Subdivision shapefile
-if (export_flag==TRUE) {
-  
-  # check if directory exists and if not, then create it
-  subDir <- "Shapefiles\\Toronto_Ward_Subdivisions"
-  
-  ifelse(!dir.exists(file.path(output_location, subDir)), 
-         dir.create(file.path(output_location, subDir)), 
-         FALSE)
-  
-  # output to location
-  temp_path = paste0(output_location, '\\', subDir)
-  writeOGR(ward_subdivision_reproj_shp, dsn = temp_path, layer = "toronto_ward_subdivision", driver="ESRI Shapefile")}
-
-
-
-
+# if (export_flag==TRUE) {
+#   
+#   # check if directory exists and if not, then create it
+#   subDir <- "Shapefiles\\Toronto_Ward_Subdivisions"
+#   
+#   ifelse(!dir.exists(file.path(output_location, subDir)), 
+#          dir.create(file.path(output_location, subDir)), 
+#          FALSE)
+#   
+#   # output to location
+#   temp_path = paste0(output_location, '\\', subDir)
+#   writeOGR(ward_subdivision_reproj_shp, dsn = temp_path, layer = "toronto_ward_subdivision", driver="ESRI Shapefile")}
 
 # export reprojected federal electoral districts shapefile
 # if (export_flag==TRUE) {
