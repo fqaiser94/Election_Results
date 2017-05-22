@@ -58,8 +58,11 @@ dissemination_area_cleaned <- dissemination_area_cleaned %>%
          ) %>%
   # remove rows like this, only want to keep aggregate rows to make things easy for end-user
   filter(!grepl(x = Characteristic, pattern = '^[0-9][0-9] years$')) %>%
+  # Add Subdivision
+  left_join(select(geo_linkage, DAUID, AREA_ID), 
+            c('Geo_Code'='DAUID')) %>%
   # select final columns
-  select(Geo_Code, Prov_name, Geo_nom, Topic, Characteristic, Total)
+  select(AREA_ID, Geo_Code, Prov_name, Geo_nom, Topic, Characteristic, Total)
 
 # exploration
 temp <- dissemination_area_cleaned %>%
