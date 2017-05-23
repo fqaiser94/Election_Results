@@ -71,6 +71,7 @@ temp <- dissemination_area_cleaned %>%
   select(Topic, Characteristic) %>%
   distinct()
 
+# write.csv(x = temp, file = 'C:\\Users\\fmqai\\Desktop\\temp.csv', row.names = FALSE, na = '')
 
 #### Aggregate to Subdivision Level #### 
 
