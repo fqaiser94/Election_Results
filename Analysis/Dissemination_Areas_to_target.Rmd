@@ -1,0 +1,241 @@
+---
+title: "Dissemination Areas to target"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This piece looks at Dissemination Areas to target. 
+
+Set hyperparameters below. 
+
+```{r}
+
+# set councillor
+councillor <- 'Olawoye Lekan'
+
+# set year
+year <- 2014
+
+# set percentage_from_top_candidate
+percentage_from_top_candidate <- 0.05
+
+```
+
+
+# Administrative
+
+Load packages
+
+```{r}
+
+# data manipulation packages
+library(dplyr)
+library(tidyr)
+
+# visualization packages
+library(ggplot2)
+
+# mapping packages
+library(rgdal)
+library(sp)
+
+# download hyperparameters
+source('C:\\Users\\fmqai\\Documents\\Election_Results\\Hyper_parameters.R')
+
+```
+
+Set theme
+
+```{r}
+
+color1 = 'blue'
+
+theme_blank <- theme(
+  axis.line = element_blank()
+  ,axis.text.x=element_blank()
+  ,axis.text.y=element_blank(),axis.ticks=element_blank()
+  ,axis.title.x=element_blank()
+  ,axis.title.y=element_blank()
+  ,legend.position="none"
+  ,panel.background=element_blank()
+  ,panel.border=element_blank()
+  ,panel.grid.major=element_blank()
+  ,panel.grid.minor=element_blank()
+  ,plot.background=element_blank()
+  )
+
+```
+
+
+
+# Load data
+
+```{r}
+
+# read in election results data
+if (!exists('election_results')) {
+  temp_path <- 'C:\\Users\\fmqai\\OneDrive\\Projects\\Wards\\R generated data\\Election_results.csv'
+  election_results <- read.csv(file = temp_path, header = TRUE, stringsAsFactors = FALSE)}
+
+
+# read in dissemination area data
+if (!exists('demographics_da')) {
+  temp_path <- 'C:\\Users\\fmqai\\OneDrive\\Projects\\Wards\\R generated data\\Census_data\\Dissemination_area.csv'
+  demographics_da <- read.csv(file = temp_path, header = TRUE, stringsAsFactors = FALSE)}
+
+# read in master_linkage
+if (!exists('geo_linkage')) {
+  temp_path <- 'C:\\Users\\fmqai\\OneDrive\\Projects\\Wards\\R generated data\\Shapefiles\\Linking_Shapefiles\\Master_linkage.csv'
+  geo_linkage <- read.csv(file = temp_path, header = TRUE, stringsAsFactors = FALSE)}
+
+# read in ward/subdivision shapefile
+if (!exists('ward_shp')){
+  temp_path <- paste0(input_location, "Shapefiles\\Voting Subdivisions")
+  ward_shp <- readOGR(dsn = temp_path, layer = "VOTING_SUBDIVISION_2014_WGS84")}
+
+# read in dissemination area shapefile
+if (!exists('da_shp')){
+  temp_path <- paste0(input_location, "Shapefiles\\Dissemination Areas")
+  da_shp <- readOGR(dsn = temp_path, layer = "gda_000b11a_e")}
+
+
+```
+
+# How far off? 
+
+```{r}
+
+# create results for selected councillor, year 
+temp <- election_results %>%
+  filter(Year %in% year) %>%
+  filter(Ward %in% wards) %>%
+  # calculate total votes for each Candidate
+  group_by(Year, Ward, Candidate) %>%
+    summarise(Votes = sum(Votes, na.rm = TRUE)) %>%
+  ungroup() %>%
+  # calculate percentage of votes
+  mutate(Percentage = Votes/sum(Votes, na.rm = TRUE)) %>%
+  # calculate difference from top 
+  group_by(Year, Ward) %>%
+    mutate(Percentage_from_top = Percentage - max(Percentage, na.rm = TRUE)) %>%
+  ungroup() %>%
+  # labels
+  mutate(# Percentage label, 
+         Percentage_label = paste0(round(Percentage*100, 0), '%'), 
+         # calculate location of Percentage_label
+         Percentage_loc = Percentage/2, 
+         # calculate location of Votes_label
+         Votes_loc = Percentage
+  )
+  
+  
+# plot
+p <- ggplot(data = temp, mapping = aes(x = Candidate, y = Percentage)) + 
+  geom_bar(stat = 'identity', fill = color1) + 
+  geom_text(aes(label = Percentage_label, y = Percentage_loc), color = 'white') + 
+  geom_line()
+  theme_blank +
+  theme(axis.text.x = element_text())
+
+p
+  
+```
+
+
+# Winning subdivisions
+
+```{r}
+
+
+
+```
+
+
+# Identify swing Subdivisions
+
+```{r}
+
+wards <- unique(election_results[election_results$Candidate==councillor, ]$Ward)
+
+subdivisions <- unique(election_results[election_results$Candidate==councillor, ]$subdivisions)
+
+# create AREA_NAME to AREA_ID
+temp_geo_linkage <- geo_linkage %>%
+  mutate(AREA_ID = as.character(AREA_ID)) %>%
+  select(AREA_NAME, AREA_ID) %>%
+  distinct() %>%
+  filter(!is.na(AREA_NAME))
+
+# extract centroids
+temp_centroids <- data.frame(rgeos::gCentroid(ward_shp, byid=TRUE)
+                             , ward_shp@data
+                             , stringsAsFactors = FALSE) %>%
+  rename(Label_x = x
+         , Label_y = y) %>%
+  select(AREA_ID, Label_x, Label_y)
+
+# create results for selected councillor, year 
+councillor_election_results <- election_results %>%
+  filter(Year %in% year) %>%
+  filter(Ward %in% wards) %>%
+  # calculate percentage of votes
+  group_by(Year, Ward, Subdivision) %>%
+    mutate(Percentage = Votes/sum(Votes, na.rm = TRUE)) %>%
+  ungroup() %>%
+  # calculate percentage from top candidate
+  group_by(Year, Ward, Subdivision) %>%
+    mutate(Percentage_from_top = max(Percentage, na.rm = TRUE) - Percentage) %>%
+  ungroup() %>%
+  # add AREA_ID
+  left_join(temp_geo_linkage, c('AreaName'='AREA_NAME')) %>%
+  # filter for councillor
+  filter(Candidate==councillor) %>%
+  # create labels column
+  mutate(Label = paste0(round(-Percentage_from_top*100, 0), '%')) %>%
+  # add Label locations
+  left_join(temp_centroids, 'AREA_ID') %>%
+  # select final columns
+  select(Year, AREA_ID, Ward, Subdivision, Candidate, Votes, Percentage, Percentage_from_top
+         , Label, Label_x, Label_y)
+
+# ward areas
+ward_areas <- unique(temp[temp$Ward %in% wards, ]$AREA_ID)
+
+# convert to dataframe for ggplot2
+temp_shp <- fortify(ward_shp, region = 'AREA_ID') %>%
+  # filter for the ward we want
+  filter(id %in% ward_areas) %>%
+  # add data
+  left_join(councillor_election_results, c("id"='AREA_ID'))
+
+
+
+
+
+
+```
+
+
+```{r}
+
+ggplot(temp_shp, aes(long, lat, group = group)) + 
+  geom_polygon(aes(fill = Percentage_from_top)
+                 , color = 'white'
+                 , alpha = 0.8
+                 # , size = 0.1
+                 ) +
+  geom_text(aes(label = Label, x = Label_x, y = Label_y), color = 'white') +
+  coord_fixed(1.3) +
+  theme_blank
+
+```
+
+
+
+
+
