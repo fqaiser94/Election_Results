@@ -113,6 +113,11 @@ if (!exists('language_classification')) {
   temp_path <- 'C:\\Users\\fmqai\\OneDrive\\Projects\\Wards\\R Inputs\\Census Data\\Meta\\Language_classification.csv'
   language_classification <- read.csv(file = temp_path, header = TRUE, stringsAsFactors = FALSE)}
 
+# read in subdivision aggregating classification file Farooq produced
+if (!exists('aggregating_sd')) {
+  temp_path <- 'C:\\Users\\fmqai\\OneDrive\\Projects\\Wards\\R Inputs\\Election Results\\Meta\\Aggregating_subdivisions.csv'
+  aggregating_sd <- read.csv(file = temp_path, header = TRUE, stringsAsFactors = FALSE)}
+
 # read in ward/subdivision shapefile
 if (!exists('ward_shp')){
   temp_path <- paste0(input_location, "Shapefiles\\Voting Subdivisions")
@@ -236,6 +241,14 @@ temp_geo_linkage <- geo_linkage %>%
   distinct() %>%
   filter(!is.na(AREA_NAME))
 
+# aggregating_sd_cleaned 
+# this is a bit of a temporary hack
+# I need all this informatio in geo_linkage.csv
+aggregating_sd_cleaned <- aggregating_sd %>%
+  left_join(select(election_results, Ward, Subdivision, AreaName), 
+            c('Ward', 'Associated_Subdivision'='Subdivision')) %>%
+  rename(Associated_AreaName = AreaName)
+
 # extract centroids
 temp_centroids <- data.frame(rgeos::gCentroid(ward_shp, byid=TRUE)
                              , ward_shp@data
@@ -248,6 +261,15 @@ temp_centroids <- data.frame(rgeos::gCentroid(ward_shp, byid=TRUE)
 councillor_election_results <- election_results %>%
   filter(Year %in% year) %>%
   filter(Ward %in% wards) %>%
+  # before aggregating subdvisions, we need to ensure "voting places"" identify with a subdivision in our shapefile
+  left_join(aggregating_sd_cleaned, c('Ward', 'Subdivision')) %>%
+  mutate(Subdivision = ifelse(!is.na(Associated_Subdivision), Associated_Subdivision, Subdivision),
+         AreaName = Associated_AreaName
+         ) %>%
+  # summarize data 
+  group_by(Year, Ward, Candidate, Subdivision, AreaName) %>%
+    summarise(Votes = sum(Votes, na.rm = TRUE)) %>%
+  ungroup() %>%
   # calculate percentage of votes
   group_by(Year, Ward, Subdivision) %>%
     mutate(Percentage = Votes/sum(Votes, na.rm = TRUE)) %>%
@@ -277,6 +299,7 @@ temp_shp <- fortify(ward_shp, region = 'AREA_ID') %>%
   filter(id %in% ward_areas) %>%
   # add data
   left_join(councillor_election_results, c("id"='AREA_ID'))
+
 
 ```
 
@@ -415,6 +438,9 @@ temp_youth_categories <- c("0 to 4 years",
 
 temp_age <- demographics_sd %>%
   filter(Topic=='Age characteristics') %>%
+    # before aggregating subdvisions, we need to ensure "voting places"" identify with a subdivision in our shapefile
+  left_join(aggregating_sd, c('Ward', 'Subdivision')) %>%
+  mutate(Subdivision = ifelse(!is.na(Associated_Subdivision), Associated_Subdivision, Subdivision)) %>%
   mutate(Category = ifelse(Characteristic %in% temp_youth_categories, 
                            'Youth', 
                            'Non_Youth')) %>%
@@ -433,6 +459,9 @@ temp_age <- demographics_sd %>%
 
 temp_language <- demographics_sd %>%
   filter(Topic=='Detailed language spoken most often at home') %>%
+    # before aggregating subdvisions, we need to ensure "voting places"" identify with a subdivision in our shapefile
+  left_join(aggregating_sd, c('Ward', 'Subdivision')) %>%
+  mutate(Subdivision = ifelse(!is.na(Associated_Subdivision), Associated_Subdivision, Subdivision)) %>%
   left_join(select(language_classification, Characteristic, Classification), 'Characteristic') %>%
   mutate(Classification = ifelse(Classification=='Other', 'Other language', Classification),  
          Category = Classification) %>%
@@ -445,8 +474,12 @@ temp_language <- demographics_sd %>%
   select(-Total) %>%
   spread(Category, Percentage)
 
+# Dwellings
+
 temp_dwelling <- demographics_sd %>%
-  filter(Topic=='Household and dwelling characteristics') %>%
+  filter(Topic=='Household and dwelling characteristics') %>%  # before aggregating subdvisions, we need to ensure "voting places"" identify with a subdivision in our shapefile
+  left_join(aggregating_sd, c('Ward', 'Subdivision')) %>%
+  mutate(Subdivision = ifelse(!is.na(Associated_Subdivision), Associated_Subdivision, Subdivision)) %>%
   within({
     Category = Characteristic
     Category[grepl(x = Characteristic, '.*Apartment.*')] = 'Apartment'
@@ -478,6 +511,8 @@ colnames(temp_demographics) <- gsub(x = colnames(temp_demographics), pattern = '
 
 all_data <- councillor_election_results %>%
   left_join(temp_demographics, 'AREA_ID') 
+
+
   
 
 ```

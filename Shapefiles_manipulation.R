@@ -53,7 +53,7 @@ ward_subdivision_reproj_shp@proj4string
 # names(ward_subdivision_reproj_shp) <- paste0('SD_', names(ward_subdivision_reproj_shp))
 
 # convert to dataframe
-ward_subdivision_df <- as.data.frame(ward_subdivision_shp)
+# ward_subdivision_df <- as.data.frame(ward_subdivision_shp)
 
 
 
@@ -98,11 +98,8 @@ dissemination_area_reproj_shp@proj4string
 # visualize shapefile
 # plot(dissemination_area_shp_ontario, axes = TRUE)
 
-# extract centre-of-mass
-trueCentroids = rgeos::gCentroid(dissemination_area_reproj_shp 
-                                 , byid = TRUE
-                                 # , id = c()
-                                 )
+# extract centroids
+trueCentroids = rgeos::gCentroid(dissemination_area_reproj_shp, byid = TRUE)
 
 # this is to show the code is working
 # plot(dissemination_area_shp_toronto)
@@ -158,20 +155,48 @@ trueCentroids = rgeos::gCentroid(dissemination_area_reproj_shp
 # if x = "SpatialPoints", y = "SpatialPolygons"
 # sp::over returns a numeric vector of length equal to the number of points; the number is the index (number) of the polygon of y in which a point falls; NA denotes the point does not fall in a polygon; if a point falls in multiple polygons, the last polygon is recorded.
 
-# extract centroids
-trueCentroids = rgeos::gCentroid(dissemination_area_reproj_shp 
-                                 , byid = TRUE
-                                 )
-
-# check (CRS) projection
-trueCentroids@proj4string
-
 # overlay dissemination area points over ward_subdivision
 # note that this dataframe is mostly empty because our ward_subdivision file is only for Toronto
 # This means that any dissemination area points outside of Toronto don't fall in any polygon within Toronto
-temp <- sp::over(x = trueCentroids, 
-                 y = ward_subdivision_reproj_shp) %>%
+
+temp <- 
+  # Assign each DA centroid (x) to a ward/subdivision (y) 
+  sp::over(x = rgeos::gCentroid(dissemination_area_reproj_shp, byid = TRUE), 
+           y = ward_subdivision_reproj_shp) %>%
+  # Add more information about each DA
+  bind_cols(dissemination_area_df) %>%
+  # Add more information about each ward/subdivision
+  left_join()
+
+# extract centroids with further information
+temp1 <- data.frame(rgeos::gCentroid(dissemination_area_reproj_shp, byid=TRUE)
+                   , dissemination_area_reproj_shp@data
+                   , stringsAsFactors = FALSE)
+
+# convert to spatial points dataframe
+# coordinates(temp1) <- ~x+y
+
+temp1 <- SpatialPointsDataFrame(temp1[, c("x", "y")], temp1[,3:5])
+
+# change projection
+temp1@proj4string
+ward_subdivision_reproj_shp@proj4string
+
+# change projection
+# You do not need to call sp::spTransform, the projection description is adequate here
+proj4string(temp1) <- crs_default
+
+temp <- 
+  # Assign each DA centroid (x) to a ward/subdivision (y) 
+  sp::over(x = temp1, 
+           y = ward_subdivision_reproj_shp) %>%
+  # Add more information about each DA
   bind_cols(dissemination_area_df)
+
+
+
+
+
 
 # set row names as Area ID from the Dissemination Area shapefile
 # temp$DAUID <- rownames(temp) 
