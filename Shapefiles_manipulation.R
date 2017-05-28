@@ -166,7 +166,8 @@ temp <-
   # Add more information about each DA
   bind_cols(dissemination_area_df) %>%
   # Add more information about each ward/subdivision
-  left_join()
+  mutate(Ward = as.numeric(substr(x = AREA_NAME, 1, 2)), 
+         Subdivision = as.numeric(substr(x = AREA_NAME, 3, 5)))
 
 
 
@@ -193,6 +194,7 @@ master_linkage <- master_linkage %>%
 #### Export procedures ####
 
 # export master_linkage csv
+# export_flag = TRUE
 if (export_flag==TRUE) {
   
   # check if directory exists and if not, then create it
