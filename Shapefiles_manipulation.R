@@ -168,31 +168,6 @@ temp <-
   # Add more information about each ward/subdivision
   left_join()
 
-# extract centroids with further information
-temp1 <- data.frame(rgeos::gCentroid(dissemination_area_reproj_shp, byid=TRUE)
-                   , dissemination_area_reproj_shp@data
-                   , stringsAsFactors = FALSE)
-
-# convert to spatial points dataframe
-# coordinates(temp1) <- ~x+y
-
-temp1 <- SpatialPointsDataFrame(temp1[, c("x", "y")], temp1[,3:5])
-
-# change projection
-temp1@proj4string
-ward_subdivision_reproj_shp@proj4string
-
-# change projection
-# You do not need to call sp::spTransform, the projection description is adequate here
-proj4string(temp1) <- crs_default
-
-temp <- 
-  # Assign each DA centroid (x) to a ward/subdivision (y) 
-  sp::over(x = temp1, 
-           y = ward_subdivision_reproj_shp) %>%
-  # Add more information about each DA
-  bind_cols(dissemination_area_df)
-
 
 
 
