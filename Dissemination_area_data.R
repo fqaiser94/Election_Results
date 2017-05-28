@@ -80,6 +80,12 @@ temp <- dissemination_area_cleaned %>%
 # Household and dwelling characteristics
 # Detailed mother tongue
 
+temp_geo_linkage <- geo_linkage %>%
+  rename(AreaID = AREA_ID, 
+         AreaName = AREA_NAME) %>%
+  select(DAUID, AreaID, AreaName, Ward, Subdivision)
+  
+  
 subdivision <- dissemination_area_cleaned %>%
   # Topics to completely remove
   filter(!(Topic %in% c('Marital status'
@@ -174,12 +180,12 @@ subdivision <- dissemination_area_cleaned %>%
                                  ))) %>%
   filter(!is.na(Total)) %>%
   # Add Subdivision
-  left_join(select(geo_linkage, DAUID, AREA_ID), 
+  left_join(temp_geo_linkage, 
             c('Geo_Code'='DAUID')) %>%
   # filter for only those areas we have a shapefile for
-  filter(!is.na(AREA_ID)) %>%
+  filter(!is.na(AreaID)) %>%
   # aggregate data at the Subdivision level
-  group_by(AREA_ID, Topic, Characteristic) %>%
+  group_by(AreaID, AreaName, Ward, Subdivision, Topic, Characteristic) %>%
     summarise(Total = sum(Total, na.rm = TRUE)) %>%
   ungroup() 
   # Final columns
