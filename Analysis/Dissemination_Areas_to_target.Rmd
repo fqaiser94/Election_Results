@@ -456,10 +456,10 @@ temp_geo_linkage <- geo_linkage_raw %>%
 aggregating_sd <- aggregating_sd_raw %>%
   mutate(AreaName = as.character(AreaName)) %>%
   left_join(temp_geo_linkage, 'AreaName') %>%
-  select(AreaID, AreaName, Associated_Subdivision, Associated_AreaName)
+  select(AreaID, Associated_Subdivision, Associated_AreaName)
 
 demographics_sd <- demographics_sd_raw %>%
-  rename(AreaID = AREA_ID) %>%
+  # rename(AreaID = AREA_ID) %>%
   mutate(AreaID = as.character(AreaID)) %>%
   left_join(aggregating_sd, 'AreaID') %>%
   mutate(AreaName = ifelse(!is.na(Associated_AreaName), 
@@ -470,14 +470,13 @@ demographics_sd <- demographics_sd_raw %>%
                               Subdivision)
          ) %>%
   # summarise 
-  group_by(AreaName, Year, Ward, Candidate, Subdivision) %>%
-    summarise(Votes = sum(Votes, na.rm = TRUE)) %>%
+  group_by(AreaID, AreaName, Ward, Subdivision, Topic, Characteristic) %>%
+    summarise(Total = sum(Total, na.rm = TRUE)) %>%
   ungroup() %>%
   # set correct format for column
   mutate(AreaName = as.character(AreaName)) %>%
   # select final column in following order
-  select(AreaName, Year, Ward, Candidate, Subdivision, Votes)
-
+  select(AreaID, AreaName, Ward, Subdivision, Topic, Characteristic, Total)
 
 ```
 
@@ -497,16 +496,13 @@ temp_youth_categories <- c("0 to 4 years",
 
 temp_age <- demographics_sd %>%
   filter(Topic=='Age characteristics') %>%
-    # before aggregating subdvisions, we need to ensure "voting places"" identify with a subdivision in our shapefile
-  left_join(aggregating_sd, c('Ward', 'Subdivision')) %>%
-  mutate(Subdivision = ifelse(!is.na(Associated_Subdivision), Associated_Subdivision, Subdivision)) %>%
   mutate(Category = ifelse(Characteristic %in% temp_youth_categories, 
                            'Youth', 
                            'Non_Youth')) %>%
-  group_by(AREA_ID, Category) %>%
+  group_by(AreaID, Category) %>%
     summarise(Total = sum(Total, na.rm = TRUE)) %>%
   ungroup() %>%
-  group_by(AREA_ID) %>%
+  group_by(AreaID) %>%
     mutate(Percentage = Total/sum(Total, na.rm = TRUE)) %>%
   ungroup() %>%
   select(-Total) %>%
@@ -516,18 +512,15 @@ temp_age <- demographics_sd %>%
 
 # n.i.e. = not included elsewhere 
 
-temp_language <- demographics_sd_raw %>%
+temp_language <- demographics_sd %>%
   filter(Topic=='Detailed language spoken most often at home') %>%
-    # before aggregating subdvisions, we need to ensure "voting places"" identify with a subdivision in our shapefile
-  left_join(aggregating_sd, c('Ward', 'Subdivision')) %>%
-  mutate(Subdivision = ifelse(!is.na(Associated_Subdivision), Associated_Subdivision, Subdivision)) %>%
-  left_join(select(language_classification, Characteristic, Classification), 'Characteristic') %>%
+  left_join(select(language_classification_raw, Characteristic, Classification), 'Characteristic') %>%
   mutate(Classification = ifelse(Classification=='Other', 'Other language', Classification),  
          Category = Classification) %>%
-  group_by(AREA_ID, Category) %>%
+  group_by(AreaID, Category) %>%
     summarise(Total = sum(Total, na.rm = TRUE)) %>%
   ungroup() %>%
-  group_by(AREA_ID) %>%
+  group_by(AreaID) %>%
     mutate(Percentage = Total/sum(Total, na.rm = TRUE)) %>%
   ungroup() %>%
   select(-Total) %>%
@@ -535,19 +528,17 @@ temp_language <- demographics_sd_raw %>%
 
 # Dwellings
 
-temp_dwelling <- demographics_sd_raw %>%
-  filter(Topic=='Household and dwelling characteristics') %>%  # before aggregating subdvisions, we need to ensure "voting places"" identify with a subdivision in our shapefile
-  left_join(aggregating_sd, c('Ward', 'Subdivision')) %>%
-  mutate(Subdivision = ifelse(!is.na(Associated_Subdivision), Associated_Subdivision, Subdivision)) %>%
+temp_dwelling <- demographics_sd %>%
+  filter(Topic=='Household and dwelling characteristics') %>%
   within({
     Category = Characteristic
     Category[grepl(x = Characteristic, '.*Apartment.*')] = 'Apartment'
     Category[Characteristic %in% c('Movable dwelling', 'Other dwelling', 'Other single-attached house')] = 'Other dwelling'
   }) %>%
-  group_by(AREA_ID, Category) %>%
+  group_by(AreaID, Category) %>%
     summarise(Total = sum(Total, na.rm = TRUE)) %>%
   ungroup() %>%
-  group_by(AREA_ID) %>%
+  group_by(AreaID) %>%
     mutate(Percentage = Total/sum(Total, na.rm = TRUE)) %>%
   ungroup() %>%
   select(-Total) %>%
@@ -556,9 +547,9 @@ temp_dwelling <- demographics_sd_raw %>%
 # One table to rule them all! LOTR
 
 temp_demographics <- temp_age %>%
-  left_join(temp_language, 'AREA_ID') %>%
-  left_join(temp_dwelling, 'AREA_ID') %>%
-  mutate(AREA_ID = as.character(AREA_ID))
+  left_join(temp_language, 'AreaID') %>%
+  left_join(temp_dwelling, 'AreaID') %>%
+  mutate(AreaID = as.character(AreaID))
 
 colnames(temp_demographics) <- gsub(x = colnames(temp_demographics), pattern = ' |-', replacement = '_')
 
@@ -569,9 +560,90 @@ colnames(temp_demographics) <- gsub(x = colnames(temp_demographics), pattern = '
 ```{r}
 
 all_data <- councillor_election_results %>%
-  left_join(temp_demographics, 'AREA_ID') 
-
-
-  
+  select(Year:Rank) %>%
+  left_join(temp_demographics, c('AREA_ID'='AreaID'))
 
 ```
+
+
+```{r}
+
+# visualize as heatmap
+temp <- all_data %>%
+  filter(Candidate==councillor) %>%
+  filter(!is.na(AREA_ID)) %>%
+  gather(key = Variable, value = Variable_percentage, Non_Youth:Single_detached_house) %>%
+  mutate(Subdivision = ifelse(Subdivision<10, paste0('0', Subdivision), as.character(Subdivision)))
+
+# order subdivision by percentage of votes
+temp$Subdivision <- factor(x = temp$Subdivision, 
+                           levels = rev(temp$Subdivision[order(temp$Percentage, decreasing = TRUE)]))
+
+# order variables as follows
+temp$Variable <- factor(x = temp$Variable, 
+                        levels =c('African', 
+                                  'Asian', 
+                                  'English', 
+                                  'European', 
+                                  'Indigenous_Canada', 
+                                  'Semitic', 
+                                  'Slavic', 
+                                  'Other_language', 
+                                  'Single_detached_house', 
+                                  'Semi_detached_house', 
+                                  'Row_house', 
+                                  'Apartment', 
+                                  'Other_dwelling', 
+                                  'Youth', 
+                                  'Non_Youth'))
+
+# create plots
+left <- ggplot(temp, aes(Subdivision, Percentage)) +
+  geom_bar(stat = 'identity', fill = color1, width = 0.5) +
+  coord_flip() + 
+  scale_y_reverse() + 
+  # labs(y = 'Percentage of Votes Won in Subdivision') +
+  ggtitle('Percentage of Votes Won') +
+  theme(plot.title = element_text(hjust=0.5), 
+        axis.title = element_blank(),
+        axis.text.y = element_blank(), 
+        axis.ticks = element_blank(),
+        plot.background = element_rect(fill = 'white'), 
+        panel.background = element_rect(fill = 'white'))
+
+right <- ggplot(temp, aes(x = Variable, y = Subdivision)) +
+  geom_tile(aes(fill = Variable_percentage), color = 'white', size = 0.5) +
+  scale_fill_distiller(palette = 'GnBu', trans = 'reverse') +
+  ggtitle('Subdivision Characteristics') +
+  theme(plot.title = element_text(hjust = 0.5), 
+        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0), 
+        axis.text.y = element_text(hjust = 0), 
+        axis.title = element_blank(), 
+        legend.position = 'none', 
+        axis.ticks = element_blank(),
+        plot.background = element_rect(fill = 'white'), 
+        panel.background = element_rect(fill = 'white'))
+
+grid::grid.newpage()
+grid::pushViewport(grid::viewport(layout = grid::grid.layout(nrow = 100, ncol = 10, respect = FALSE)))
+print(left, vp = grid::viewport(layout.pos.row = 1:71, layout.pos.col = 1:4, just = 'center'))
+print(right, vp = grid::viewport(layout.pos.row = 1:100, layout.pos.col = 5:10, just = 'center'))
+
+jpeg(filename = 'C:\\Users\\fmqai\\Desktop\\temp.jpeg', 
+     width = 20, 
+     height = 10, 
+     units = 'cm', 
+     pointsize = 0.2, 
+     bg = 'transparent', 
+     res = 300)
+
+
+grid::grid.newpage()
+grid::pushViewport(grid::viewport(layout = grid::grid.layout(nrow = 100, ncol = 10, respect = FALSE)))
+print(left, vp = grid::viewport(layout.pos.row = 1:69, layout.pos.col = 1:4, just = 'center'))
+print(right, vp = grid::viewport(layout.pos.row = 2:100, layout.pos.col = 5:10, just = 'center'))
+
+dev.off()
+
+```
+
