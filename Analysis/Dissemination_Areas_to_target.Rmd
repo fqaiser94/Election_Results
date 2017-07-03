@@ -163,7 +163,7 @@ subdivisions <- unique(election_results_raw[election_results_raw$Candidate==coun
 
 ```
 
-# `r Year` `r councillor` Results
+# `r year` `r councillor` Results
 
 ## Ward results
 
@@ -624,11 +624,14 @@ right <- ggplot(temp, aes(x = Variable, y = Subdivision)) +
         plot.background = element_rect(fill = 'white'), 
         panel.background = element_rect(fill = 'white'))
 
+# arrange plots
 grid::grid.newpage()
 grid::pushViewport(grid::viewport(layout = grid::grid.layout(nrow = 100, ncol = 10, respect = FALSE)))
 print(left, vp = grid::viewport(layout.pos.row = 1:71, layout.pos.col = 1:4, just = 'center'))
 print(right, vp = grid::viewport(layout.pos.row = 1:100, layout.pos.col = 5:10, just = 'center'))
 
+
+# export
 jpeg(filename = 'C:\\Users\\fmqai\\Desktop\\temp.jpeg', 
      width = 20, 
      height = 10, 
@@ -644,6 +647,32 @@ print(left, vp = grid::viewport(layout.pos.row = 1:69, layout.pos.col = 1:4, jus
 print(right, vp = grid::viewport(layout.pos.row = 2:100, layout.pos.col = 5:10, just = 'center'))
 
 dev.off()
+
+```
+
+
+This is useful but let's try to quantify this in a more statistically rigorous fashion.  
+
+```{r}
+
+library(rpart)
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+
+temp <- all_data %>%
+  filter(Candidate==councillor) %>%
+  filter(!is.na(AREA_ID))
+
+fit <- rpart(Rank ~ Non_Youth + Youth + African + Asian + English + European + Indigenous_Canada + Other_language + Semitic + Slavic + Apartment + Other_dwelling + Row_house + Semi_detached_house + Single_detached_house,
+             data = temp,
+             method="class")
+
+
+plot(fit)
+
+fancyRpartPlot(fit)
+
 
 ```
 
