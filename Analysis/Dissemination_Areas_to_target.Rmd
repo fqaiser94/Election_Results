@@ -1,0 +1,678 @@
+---
+title: "Dissemination Areas to target"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+# Introduction
+
+This piece looks at Dissemination Areas to target. 
+
+## Remaining items
+
+1. Incumbent results  
+2. Regression modelling to identify features strongly correlated with candidate success  
+3. Characterize each subdivision
+
+# Hyper parameters
+
+Set hyperparameters below. 
+
+```{r}
+
+# set councillor
+councillor <- 'Olawoye Lekan'
+
+# set year
+year <- 2014
+
+# set percentage_from_top_candidate
+percentage_from_top_candidate <- 0.05
+
+```
+
+# Administrative
+
+Load packages
+
+```{r}
+
+# data manipulation packages
+library(dplyr)
+library(tidyr)
+
+# visualization packages
+library(ggplot2)
+library(plotly)
+
+# mapping packages
+library(rgdal)
+library(sp)
+library(scales)
+
+
+# download hyperparameters
+source('C:\\Users\\fmqai\\Documents\\Election_Results\\Hyper_parameters.R')
+
+```
+
+# Themes
+
+```{r}
+
+# set colors
+
+color1 = '#C21032'
+color2 = '#F8E45F'
+color3 = '#C8CE86'
+color4 = '#424441'
+color5 = '#728D6E'
+
+text_color1 = 'white'
+text_color2 = 'grey30'
+
+# Font
+
+# extrafont::font_import(pattern="Arial", prompt = FALSE) # load all fonts
+
+font1 = 'Tw Cen MT'
+font_size1 = '11'
+font_style1 = 'bold'
+
+# set blank theme
+
+theme_blank <- theme(
+  axis.line = element_blank()
+  ,axis.text.x = element_blank()
+  ,axis.text.y = element_blank()
+  ,axis.ticks = element_blank()
+  ,axis.title.x = element_blank()
+  ,axis.title.y = element_blank()
+  ,legend.position = "none"
+  ,panel.background = element_blank()
+  ,panel.border = element_blank()
+  ,panel.grid.major = element_blank()
+  ,panel.grid.minor = element_blank()
+  ,plot.background = element_blank()
+  )
+
+```
+
+# Load data
+
+```{r}
+
+# read in election results data
+if (!exists('election_results_raw')) {
+  temp_path <- 'C:\\Users\\fmqai\\OneDrive\\Projects\\Wards\\R generated data\\Election_results.csv'
+  election_results_raw <- read.csv(file = temp_path, header = TRUE, stringsAsFactors = FALSE)}
+
+# read in ward/subdivision data
+if (!exists('demographics_sd_raw')) {
+  temp_path <- 'C:\\Users\\fmqai\\OneDrive\\Projects\\Wards\\R generated data\\Census_data\\Subdivision.csv'
+  demographics_sd_raw <- read.csv(file = temp_path, header = TRUE, stringsAsFactors = FALSE)}
+
+# read in dissemination area data
+# if (!exists('demographics_da_raw')) {
+#   temp_path <- 'C:\\Users\\fmqai\\OneDrive\\Projects\\Wards\\R generated data\\Census_data\\Dissemination_area.csv'
+#   demographics_da_raw <- read.csv(file = temp_path, header = TRUE, stringsAsFactors = FALSE)}
+
+# read in master_linkage
+if (!exists('geo_linkage_raw')) {
+  temp_path <- 'C:\\Users\\fmqai\\OneDrive\\Projects\\Wards\\R generated data\\Shapefiles\\Linking_Shapefiles\\Master_linkage.csv'
+  geo_linkage_raw <- read.csv(file = temp_path, header = TRUE, stringsAsFactors = FALSE)}
+
+# read in language classification file Farooq produced
+if (!exists('language_classification_raw')) {
+  temp_path <- 'C:\\Users\\fmqai\\OneDrive\\Projects\\Wards\\R Inputs\\Census Data\\Meta\\Language_classification.csv'
+  language_classification_raw <- read.csv(file = temp_path, header = TRUE, stringsAsFactors = FALSE)}
+
+# read in subdivision aggregating classification file Farooq produced
+if (!exists('aggregating_sd_raw')) {
+  temp_path <- 'C:\\Users\\fmqai\\OneDrive\\Projects\\Wards\\R Inputs\\Election Results\\Meta\\Aggregating_subdivisions.csv'
+  aggregating_sd_raw <- read.csv(file = temp_path, header = TRUE, stringsAsFactors = FALSE)}
+
+# read in ward/subdivision shapefile
+if (!exists('ward_shp')){
+  temp_path <- paste0(input_location, "Shapefiles\\Voting Subdivisions")
+  ward_shp <- readOGR(dsn = temp_path, layer = "VOTING_SUBDIVISION_2014_WGS84")}
+
+# read in dissemination area shapefile
+if (!exists('da_shp')){
+  temp_path <- paste0(input_location, "Shapefiles\\Dissemination Areas")
+  da_shp <- readOGR(dsn = temp_path, layer = "gda_000b11a_e")}
+
+
+```
+
+```{r}
+
+# Based on the hyperparamaters set above, define other attributes
+
+wards <- unique(election_results_raw[election_results_raw$Candidate==councillor
+                                 & election_results_raw$Year==year, ]$Ward)
+
+subdivisions <- unique(election_results_raw[election_results_raw$Candidate==councillor
+                                        & election_results_raw$Year==year, ]$Subdivision)
+
+
+```
+
+# `r year` `r councillor` Results
+
+## Ward results
+
+```{r}
+
+# We will use this dataframe for all election results
+# This way we won't have to aggregate repeatedly
+election_results <- election_results_raw %>%
+  left_join(select(aggregating_sd_raw, AreaName, Associated_Subdivision, Associated_AreaName), 
+            'AreaName') %>%
+  mutate(AreaName = ifelse(!is.na(Associated_AreaName), 
+                           Associated_AreaName, 
+                           AreaName),
+         Subdivision = ifelse(!is.na(Associated_Subdivision), 
+                              Associated_Subdivision, 
+                              Subdivision)
+         ) %>%
+  # summarise 
+  group_by(AreaName, Year, Ward, Candidate, Subdivision) %>%
+    summarise(Votes = sum(Votes, na.rm = TRUE)) %>%
+  ungroup() %>%
+  # set correct format for column
+  mutate(AreaName = as.character(AreaName)) %>%
+  # select final column in following order
+  select(AreaName, Year, Ward, Candidate, Subdivision, Votes)
+
+```
+
+
+```{r}
+
+# create results for selected councillor, year 
+temp <- election_results %>%
+  filter(Year %in% year) %>%
+  filter(Ward %in% wards) %>%
+  # calculate total votes for each Candidate
+  group_by(Year, Ward, Candidate) %>%
+    summarise(Votes = sum(Votes, na.rm = TRUE)) %>%
+  ungroup() %>%
+  # calculate percentage of votes
+  mutate(Percentage = Votes/sum(Votes, na.rm = TRUE)) %>%
+  # calculate percentage from top candidate
+  mutate(Percentage_max = max(Percentage, na.rm = TRUE), 
+         Percentage_difference_from_max = Percentage_max - Percentage
+         ) %>%
+  # create labels
+  mutate(# Percentage label, 
+         Percentage_label = paste0(round(Percentage*100, 0), '%'), 
+         # calculate location of Percentage_label
+         Percentage_loc = Percentage/2, 
+         # votes label 
+         Votes_label = paste0(format(Votes, big.mark = ',')), 
+         # calculate location of Votes_label
+         Votes_loc = Percentage + 0.01,
+         # Percentage from top label
+         Percentage_difference_from_max_label = paste0(round(-Percentage_difference_from_max*100, 0), '%'))
+
+# order candidates by votes
+temp$Candidate <- factor(x = temp$Candidate, 
+                         levels = temp$Candidate[order(temp$Votes, decreasing = TRUE)])
+  
+  
+# create plot
+temp_width <- 0.7
+
+p <- ggplot(data = temp, mapping = aes(x = Candidate, y = Percentage)) + 
+  geom_bar(stat = 'identity', fill = color1, width = temp_width) + 
+  # percentage labels in center of bars
+  geom_text(mapping = aes(label = Percentage_label, 
+                          y = Percentage_loc), 
+            color = text_color1, 
+            fontface = font_style1) +
+  # votes label on top of bars 
+  geom_text(aes(label = Votes_label, y = Votes_loc), color = text_color2, family = 'Helvetica', fontface = font_style1) + 
+  # difference from our candidate and top candidate 
+  geom_segment(aes(x = as.numeric(Candidate) + temp_width/3, y = Percentage_max,
+                   xend = as.numeric(Candidate) + temp_width/3, yend = Percentage), 
+               color = ifelse(temp$Candidate==councillor, color2, NA), 
+               size = 1,
+               lineend = "square", 
+               arrow = arrow(type = 'closed') 
+               ) +
+  # difference label 
+  geom_text(aes(label = ifelse(temp$Candidate==councillor, 
+                               Percentage_difference_from_max_label, 
+                               NA),
+                x = Candidate,
+                y = Percentage_difference_from_max/2 + Percentage, 
+                hjust = -temp_width*2.5,
+                fontface = font_style1
+                ), 
+            color = color2) +
+  theme_blank +
+  theme(axis.text.x = element_text(family = font1, 
+                                   face = font_style1,
+                                   size = font_size1,
+                                   color = text_color2))
+
+# set winning candidate
+winning_candidate <- as.character(temp[which.max(temp$Votes), ]$Candidate)
+
+# print plot
+p
+
+  
+```
+
+## Subdivision results
+
+```{r}
+
+# create temporary dataset linking AreaNames to AreaIDs
+temp_geo_linkage <- select(geo_linkage_raw, AREA_NAME, AREA_ID) %>%
+  mutate(AREA_NAME = as.character(AREA_NAME), 
+         AREA_ID = as.character(AREA_ID)) %>%
+  distinct() %>%
+  filter(!is.na(AREA_NAME))
+
+# extract centroids
+sd_centroids <- data.frame(rgeos::gCentroid(ward_shp, byid=TRUE)
+                             , ward_shp@data
+                             , stringsAsFactors = FALSE) %>%
+  rename(Label_x = x
+         , Label_y = y) %>%
+  mutate(AREA_ID = as.character(AREA_ID)) %>%
+  select(AREA_ID, Label_x, Label_y)
+
+# create results datasets
+councillor_election_results <- election_results %>%
+  filter(Year %in% year) %>%
+  filter(Ward %in% wards) %>%
+  # summarize data 
+  group_by(Year, Ward, Candidate, Subdivision, AreaName) %>%
+    summarise(Votes = sum(Votes, na.rm = TRUE)) %>%
+  ungroup() %>%
+  # calculate percentage of votes
+  group_by(Year, Ward, Subdivision) %>%
+    mutate(Percentage = Votes/sum(Votes, na.rm = TRUE)) %>%
+  ungroup() %>%
+  # calculate percentage from top candidate
+  group_by(Year, Ward, Subdivision) %>%
+    mutate(Percentage_from_top = max(Percentage, na.rm = TRUE) - Percentage) %>%
+  ungroup() %>%
+  # Candidate rank in subdivision
+  group_by(Year, Ward, Subdivision) %>%
+    mutate(Rank = as.factor(dense_rank(desc(Percentage)))) %>%
+  ungroup() %>%
+  # add AREA_ID
+  left_join(temp_geo_linkage, 
+            c('AreaName'='AREA_NAME')) %>%
+  # create labels column
+  mutate(Label = paste0(round(-Percentage_from_top*100, 0), '%')) %>%
+  # add Label locations
+  left_join(sd_centroids, 'AREA_ID') %>%
+  # select final columns
+  select(Year, AREA_ID, Ward, Subdivision, Candidate, Votes, Percentage,
+         Percentage_from_top, Rank, Label, Label_x, Label_y)
+
+```
+
+
+```{r}
+
+# get AREA_ID for ward in question
+ward_AREA_IDs <- unique(councillor_election_results[councillor_election_results$Ward %in% wards, ]$AREA_ID)
+
+# filter for councillor in question
+temp_councillor_election_results <- councillor_election_results %>%
+  filter(Candidate==councillor)
+
+# convert to shapefile to dataframe for ggplot2
+temp_shp <- fortify(ward_shp, region = 'AREA_ID') %>%
+  # filter for the ward we want
+  filter(id %in% ward_AREA_IDs) %>%
+  # add data
+  left_join(temp_councillor_election_results, c("id"='AREA_ID'))
+
+
+# create plot
+p <- ggplot(temp_shp, aes(x = long, y = lat, group = group)) + 
+  geom_polygon(aes(fill = Rank)
+                 , color = 'black'
+                 , alpha = 1
+               ) +
+  geom_text(aes(label = Subdivision, 
+                x = Label_x, 
+                y = Label_y), 
+            color = ifelse(temp_shp$Rank==4, text_color2, text_color1)
+            ) +
+  scale_fill_brewer(palette = 'Blues',
+                    direction = -1, 
+                    name = 'Subdivision\nRank',
+                    guide = guide_legend(reverse = FALSE)) +
+  coord_fixed(1.3) +
+  theme_blank + 
+  theme(#panel.background = element_rect(fill = 'black', colour = 'black'), 
+        plot.background = element_rect(fill = 'black', colour = 'black'),
+        legend.background = element_rect(fill = 'black', color = 'black'),
+        legend.text = element_text(color = 'white'),
+        legend.title = element_text(color = 'white'),
+        legend.position = 'right')
+
+# print plot
+# ggplotly(p)
+p
+
+```
+
+```{r}
+
+temp_councillor_election_results %>%
+  mutate(Percentage = paste0(round(Percentage*100, 0), '%')) %>%
+  select(Year, Ward, Subdivision, Candidate, Votes, Percentage, Rank)
+
+```
+
+## Swing Subdivisions
+
+```{r}
+
+# get AREA_ID for ward in question
+ward_AREA_IDs <- unique(councillor_election_results[councillor_election_results$Ward %in% wards, ]$AREA_ID)
+
+# filter for councillor in question
+temp_councillor_election_results <- councillor_election_results %>%
+  filter(Candidate==councillor)
+
+# convert to shapefile to dataframe for ggplot2
+temp_shp <- fortify(ward_shp, region = 'AREA_ID') %>%
+  # filter for the ward we want
+  filter(id %in% ward_AREA_IDs) %>%
+  # add data
+  left_join(temp_councillor_election_results, c("id"='AREA_ID'))
+
+# create plot
+p <- ggplot(temp_shp, aes(x = long, y = lat, group = group)) + 
+  geom_polygon(aes(fill = Percentage_from_top)
+                 , color = 'black'
+                 , alpha = 1
+               ) +
+  geom_text(aes(label = Subdivision, 
+                x = Label_x, 
+                y = Label_y), 
+            color = ifelse(temp_shp$Percentage_from_top<0.1, text_color1, text_color2)
+            ) +
+  scale_fill_distiller(palette = 'Blues', 
+                       name = 'Percentage from Subdivision\nWinning Candidate',
+                       guide = guide_legend(reverse = FALSE)) +
+  coord_fixed(1.3) +
+  theme_blank + 
+  theme(#panel.background = element_rect(fill = 'black', colour = 'black'), 
+        plot.background = element_rect(fill = 'black', colour = 'black'),
+        legend.background = element_rect(fill = 'black', color = 'black'),
+        legend.text = element_text(color = 'white'),
+        legend.title = element_text(color = 'white'),
+        legend.position = 'right')
+
+# print plot
+# ggplotly(p)
+p
+
+```
+
+```{r}
+
+temp_councillor_election_results %>%
+  mutate(Percentage_from_top = paste0(round(Percentage_from_top*100, 0), '%')) %>%
+  select(Year, Ward, Subdivision, Candidate, Percentage_from_top)
+
+```
+
+# Characterizing subdivisions
+
+```{r}
+
+# We will use this dataframe for all demographics at subdivision level
+# This way we won't have to aggregate repeatedly
+
+# create temporary dataset linking AreaNames to AreaIDs
+temp_geo_linkage <- geo_linkage_raw %>%
+  select(AREA_NAME, AREA_ID) %>%
+  mutate(AREA_NAME = as.character(AREA_NAME), 
+         AREA_ID = as.character(AREA_ID)) %>%
+  rename(AreaName = AREA_NAME, 
+         AreaID = AREA_ID) %>%
+  distinct() %>%
+  filter(!is.na(AreaName))
+
+# aggregation dataframe idetifying which subdivision 'voting places' are associated with
+aggregating_sd <- aggregating_sd_raw %>%
+  mutate(AreaName = as.character(AreaName)) %>%
+  left_join(temp_geo_linkage, 'AreaName') %>%
+  select(AreaID, Associated_Subdivision, Associated_AreaName)
+
+demographics_sd <- demographics_sd_raw %>%
+  # rename(AreaID = AREA_ID) %>%
+  mutate(AreaID = as.character(AreaID)) %>%
+  left_join(aggregating_sd, 'AreaID') %>%
+  mutate(AreaName = ifelse(!is.na(Associated_AreaName), 
+                           Associated_AreaName, 
+                           AreaName),
+         Subdivision = ifelse(!is.na(Associated_Subdivision), 
+                              Associated_Subdivision, 
+                              Subdivision)
+         ) %>%
+  # summarise 
+  group_by(AreaID, AreaName, Ward, Subdivision, Topic, Characteristic) %>%
+    summarise(Total = sum(Total, na.rm = TRUE)) %>%
+  ungroup() %>%
+  # set correct format for column
+  mutate(AreaName = as.character(AreaName)) %>%
+  # select final column in following order
+  select(AreaID, AreaName, Ward, Subdivision, Topic, Characteristic, Total)
+
+```
+
+
+```{r}
+
+# Get demographics data into order
+
+# Age
+
+temp_youth_categories <- c("0 to 4 years", 
+                           "5 to 9 years",
+                           "10 to 14 years",
+                           "15 to 19 years",
+                           "20 to 24 years", 
+                           "25 to 29 years")
+
+temp_age <- demographics_sd %>%
+  filter(Topic=='Age characteristics') %>%
+  mutate(Category = ifelse(Characteristic %in% temp_youth_categories, 
+                           'Youth', 
+                           'Non_Youth')) %>%
+  group_by(AreaID, Category) %>%
+    summarise(Total = sum(Total, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(AreaID) %>%
+    mutate(Percentage = Total/sum(Total, na.rm = TRUE)) %>%
+  ungroup() %>%
+  select(-Total) %>%
+  spread(Category, Percentage)
+
+# Language
+
+# n.i.e. = not included elsewhere 
+
+temp_language <- demographics_sd %>%
+  filter(Topic=='Detailed language spoken most often at home') %>%
+  left_join(select(language_classification_raw, Characteristic, Classification), 'Characteristic') %>%
+  mutate(Classification = ifelse(Classification=='Other', 'Other language', Classification),  
+         Category = Classification) %>%
+  group_by(AreaID, Category) %>%
+    summarise(Total = sum(Total, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(AreaID) %>%
+    mutate(Percentage = Total/sum(Total, na.rm = TRUE)) %>%
+  ungroup() %>%
+  select(-Total) %>%
+  spread(Category, Percentage)
+
+# Dwellings
+
+temp_dwelling <- demographics_sd %>%
+  filter(Topic=='Household and dwelling characteristics') %>%
+  within({
+    Category = Characteristic
+    Category[grepl(x = Characteristic, '.*Apartment.*')] = 'Apartment'
+    Category[Characteristic %in% c('Movable dwelling', 'Other dwelling', 'Other single-attached house')] = 'Other dwelling'
+  }) %>%
+  group_by(AreaID, Category) %>%
+    summarise(Total = sum(Total, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(AreaID) %>%
+    mutate(Percentage = Total/sum(Total, na.rm = TRUE)) %>%
+  ungroup() %>%
+  select(-Total) %>%
+  spread(Category, Percentage)
+
+# One table to rule them all! LOTR
+
+temp_demographics <- temp_age %>%
+  left_join(temp_language, 'AreaID') %>%
+  left_join(temp_dwelling, 'AreaID') %>%
+  mutate(AreaID = as.character(AreaID))
+
+colnames(temp_demographics) <- gsub(x = colnames(temp_demographics), pattern = ' |-', replacement = '_')
+
+
+```
+
+
+```{r}
+
+all_data <- councillor_election_results %>%
+  select(Year:Rank) %>%
+  left_join(temp_demographics, c('AREA_ID'='AreaID'))
+
+```
+
+
+```{r}
+
+# visualize as heatmap
+temp <- all_data %>%
+  filter(Candidate==councillor) %>%
+  filter(!is.na(AREA_ID)) %>%
+  gather(key = Variable, value = Variable_percentage, Non_Youth:Single_detached_house) %>%
+  mutate(Subdivision = ifelse(Subdivision<10, paste0('0', Subdivision), as.character(Subdivision)))
+
+# order subdivision by percentage of votes
+temp$Subdivision <- factor(x = temp$Subdivision, 
+                           levels = rev(temp$Subdivision[order(temp$Percentage, decreasing = TRUE)]))
+
+# order variables as follows
+temp$Variable <- factor(x = temp$Variable, 
+                        levels =c('African', 
+                                  'Asian', 
+                                  'English', 
+                                  'European', 
+                                  'Indigenous_Canada', 
+                                  'Semitic', 
+                                  'Slavic', 
+                                  'Other_language', 
+                                  'Single_detached_house', 
+                                  'Semi_detached_house', 
+                                  'Row_house', 
+                                  'Apartment', 
+                                  'Other_dwelling', 
+                                  'Youth', 
+                                  'Non_Youth'))
+
+# create plots
+left <- ggplot(temp, aes(Subdivision, Percentage)) +
+  geom_bar(stat = 'identity', fill = color1, width = 0.5) +
+  coord_flip() + 
+  scale_y_reverse() + 
+  # labs(y = 'Percentage of Votes Won in Subdivision') +
+  ggtitle('Percentage of Votes Won') +
+  theme(plot.title = element_text(hjust=0.5), 
+        axis.title = element_blank(),
+        axis.text.y = element_blank(), 
+        axis.ticks = element_blank(),
+        plot.background = element_rect(fill = 'white'), 
+        panel.background = element_rect(fill = 'white'))
+
+right <- ggplot(temp, aes(x = Variable, y = Subdivision)) +
+  geom_tile(aes(fill = Variable_percentage), color = 'white', size = 0.5) +
+  scale_fill_distiller(palette = 'GnBu', trans = 'reverse') +
+  ggtitle('Subdivision Characteristics') +
+  theme(plot.title = element_text(hjust = 0.5), 
+        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0), 
+        axis.text.y = element_text(hjust = 0), 
+        axis.title = element_blank(), 
+        legend.position = 'none', 
+        axis.ticks = element_blank(),
+        plot.background = element_rect(fill = 'white'), 
+        panel.background = element_rect(fill = 'white'))
+
+# arrange plots
+grid::grid.newpage()
+grid::pushViewport(grid::viewport(layout = grid::grid.layout(nrow = 100, ncol = 10, respect = FALSE)))
+print(left, vp = grid::viewport(layout.pos.row = 1:71, layout.pos.col = 1:4, just = 'center'))
+print(right, vp = grid::viewport(layout.pos.row = 1:100, layout.pos.col = 5:10, just = 'center'))
+
+
+# export
+jpeg(filename = 'C:\\Users\\fmqai\\Desktop\\temp.jpeg', 
+     width = 20, 
+     height = 10, 
+     units = 'cm', 
+     pointsize = 0.2, 
+     bg = 'transparent', 
+     res = 300)
+
+
+grid::grid.newpage()
+grid::pushViewport(grid::viewport(layout = grid::grid.layout(nrow = 100, ncol = 10, respect = FALSE)))
+print(left, vp = grid::viewport(layout.pos.row = 1:69, layout.pos.col = 1:4, just = 'center'))
+print(right, vp = grid::viewport(layout.pos.row = 2:100, layout.pos.col = 5:10, just = 'center'))
+
+dev.off()
+
+```
+
+
+This is useful but let's try to quantify this in a more statistically rigorous fashion.  
+
+```{r}
+
+library(rpart)
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+
+temp <- all_data %>%
+  filter(Candidate==councillor) %>%
+  filter(!is.na(AREA_ID))
+
+fit <- rpart(Rank ~ Non_Youth + Youth + African + Asian + English + European + Indigenous_Canada + Other_language + Semitic + Slavic + Apartment + Other_dwelling + Row_house + Semi_detached_house + Single_detached_house,
+             data = temp,
+             method="class")
+
+
+plot(fit)
+
+fancyRpartPlot(fit)
+
+
+```
+
